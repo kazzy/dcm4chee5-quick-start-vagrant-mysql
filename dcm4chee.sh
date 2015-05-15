@@ -16,6 +16,7 @@ sudo -u postgres psql -c  "GRANT ALL PRIVILEGES ON DATABASE dcm4chee to dcm4chee
 
 # DOWNLOAD AND DEPLOY WILDFLY
 # Thanks to https://gesker.wordpress.com/2015/02/17/quick-install-wildfly-8-2-0-on-ubuntu-14-04/ for some of the steps!
+cd /root
 adduser --system --no-create-home --disabled-password --disabled-login wildfly
 wget http://download.jboss.org/wildfly/8.2.0.Final/wildfly-8.2.0.Final.zip
 unzip wildfly-8.2.0.Final.zip
@@ -136,9 +137,8 @@ cd /opt/wildfly/standalone/deployments/
 wget https://jdbc.postgresql.org/download/postgresql-9.4-1201.jdbc4.jar
 cp postgresql-9.4-1201.jdbc4.jar /opt/wildfly/modules/org/postgresql/main/
 cd /opt/wildfly/standalone/configuration
-cp -f ~/standalone.xml .
+cp -f /home/vagrant/standalone.xml .
 cd /opt/wildfly/standalone/deployments
 cp $DCM4CHEE_ARC/deploy/*.war .
 chown -R wildfly /opt/wildfly/
 service wildfly start
-
