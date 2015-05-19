@@ -84,6 +84,10 @@ cd dcm4chee-conf
 mvn install -Dmaven.test.skip=true
 cd ..
 
+# SET UP THE STORAGE DIRECTORY
+mkdir -p /var/local/dcm4chee-arc
+chown -R wildfly /var/local/dcm4chee-arc
+
 
 # CLONE DCM4CHEE (TWO E's) AND COMPILE THEN DEPLOY
 git clone https://github.com/dcm4che/dcm4chee-arc-cdi.git
