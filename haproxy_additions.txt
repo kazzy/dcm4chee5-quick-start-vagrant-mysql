@@ -1,0 +1,18 @@
+
+# Set default handler of port 80 to be dcm4chee's Wildfly instance
+frontend http-in
+        mode http
+        bind *:80
+        default_backend dcm4chee
+
+# Add the CORS header
+backend dcm4chee
+        http-response add-header Access-Control-Allow-Origin *
+        server dcm4cheeServer 127.0.0.1:8080
+
+# Optional, if you want to enable HTTPS, uncomment and point to a valid .pem file (certificate + private key concatenated)
+#frontend https-in
+#        bind *:443 ssl crt /etc/haproxy/vna.hackathon.siim.org-2015.pem
+        # Force HTTP port 80 redirection to HTTPS port 443
+#        reqadd X-Fowarded-Proto:\ https
+#        default_backend dcm4chee

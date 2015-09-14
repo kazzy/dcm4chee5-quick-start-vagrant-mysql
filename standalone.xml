@@ -33,6 +33,7 @@
     <system-properties>
        <property name="org.dcm4che.conf.storage" value="json_file" />
        <property name="org.dcm4che.conf.filename" value="/opt/wildfly/standalone/configuration/dcm4chee-arc/sample-config.json" />
+       <property name="org.dcm4chee.archive.prefs" value=""/>
     </system-properties>
 
 
@@ -400,9 +401,21 @@
                     <jms-queue name="archiver">
                         <entry name="queue/archiver"/>
                     </jms-queue>
+                    <jms-queue name="extDeviceArchiver">
+                        <entry name="queue/extDeviceArchiver"/>
+                    </jms-queue>
+                    <jms-queue name="stowclient">
+                        <entry name="queue/stowclient"/>
+                    </jms-queue>
                     <jms-queue name="storescu">
                         <entry name="queue/storescu"/>
                     </jms-queue>
+                    <jms-queue name="storeremember">
+                        <entry name="queue/storeremember"/>
+                    </jms-queue>
+                    <jms-topic name="DicomConfigurationChangeTopic">
+                        <entry name="/topic/DicomConfigurationChangeTopic"/>
+                    </jms-topic>
                 </jms-destinations>
             </hornetq-server>
         </subsystem>

@@ -5,7 +5,7 @@ sudo su
 # INSTALL REQUIRED DEBIAN PACKAGES
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -q -y  git openjdk-7-jdk maven unzip postgresql postgresql-contrib postgresql-client
+apt-get install -q -y  git openjdk-7-jdk maven unzip postgresql postgresql-contrib postgresql-client haproxy
 
 
 # SET UP THE DATABASE
@@ -84,6 +84,14 @@ cd dcm4chee-conf
 mvn install -Dmaven.test.skip=true
 cd ..
 
+
+# CLONE MONITORING AND COMPILE
+git clone https://github.com/dcm4che/dcm4chee-monitoring
+cd dcm4chee-monitoring
+mvn install -Dmaven.test.skip=true
+cd ..
+
+
 # SET UP THE STORAGE DIRECTORY
 mkdir -p /var/local/dcm4chee-arc
 chown -R wildfly /var/local/dcm4chee-arc
@@ -94,33 +102,29 @@ git clone https://github.com/dcm4che/dcm4chee-arc-cdi.git
 cd dcm4chee-arc-cdi
 mvn install -Dmaven.test.skip=true -Ddb=psql
 cd dcm4chee-arc-assembly/target
-unzip dcm4chee-arc-4.4.0-SNAPSHOT-psql.zip
+unzip dcm4chee-arc-*.zip
+export DCM4CHEE_ARC=`find \`pwd\` -name "dcm4chee-arc-*" -type d`
 cd /root
 
 
 # CREATE THE DB STRUCTURE
 export PGPASSWORD=dcm4chee
-psql -h 0.0.0.0 -U dcm4chee dcm4chee -f /root/dcm4chee-arc-cdi/dcm4chee-arc-assembly/target/dcm4chee-arc-4.4.0-SNAPSHOT/sql/create-table-psql.ddl
-psql -h 0.0.0.0 -U dcm4chee dcm4chee -f /root/dcm4chee-arc-cdi/dcm4chee-arc-assembly/target/dcm4chee-arc-4.4.0-SNAPSHOT/sql/create-fk-index.ddl
-psql -h 0.0.0.0 -U dcm4chee dcm4chee -f /root/dcm4chee-arc-cdi/dcm4chee-arc-assembly/target/dcm4chee-arc-4.4.0-SNAPSHOT/sql/create-index.ddl
+psql -h 0.0.0.0 -U dcm4chee dcm4chee -f $DCM4CHEE_ARC/sql/create-table-psql.ddl
+psql -h 0.0.0.0 -U dcm4chee dcm4chee -f $DCM4CHEE_ARC/sql/create-fk-index.ddl
+psql -h 0.0.0.0 -U dcm4chee dcm4chee -f $DCM4CHEE_ARC/sql/create-index.ddl
+
+
+# SET UP HAProxy
+cat /home/vagrant/haproxy_additions.txt >> /etc/haproxy/haproxy.cfg
+service haproxy restart
 
 
 # SET UP WILDFLY
 service wildfly stop
-export DCM4CHEE_ARC=/root/dcm4chee-arc-cdi/dcm4chee-arc-assembly/target/dcm4chee-arc-4.4.0-SNAPSHOT
 cd /opt/wildfly/standalone/configuration
 cp -r $DCM4CHEE_ARC/configuration/dcm4chee-arc/ .
 cd /opt/wildfly/
-#unzip $DCM4CHEE_ARC/jboss-module/*.zip
-unzip $DCM4CHEE_ARC/jboss-module/dcm4che-jboss-modules-3.3.7-SNAPSHOT.zip
-unzip $DCM4CHEE_ARC/jboss-module/jai_imageio-jboss-modules-1.2-pre-dr-b04.zip
-unzip $DCM4CHEE_ARC/jboss-module/querydsl-jboss-modules-3.2.3.zip
-unzip $DCM4CHEE_ARC/jboss-module/jclouds-jboss-modules-1.8.1.zip
-unzip $DCM4CHEE_ARC/jboss-module/jxpath-jboss-module-1.3.zip
-unzip $DCM4CHEE_ARC/jboss-module/compress-jboss-module-1.9.zip
-unzip $DCM4CHEE_ARC/jboss-module/jsch-jboss-modules-0.1.52.zip
-unzip $DCM4CHEE_ARC/jboss-module/jcifs-jboss-modules-1.3.17.zip
-unzip $DCM4CHEE_ARC/jboss-module/jdbc-jboss-modules-1.0.0-psql.zip
+find $DCM4CHEE_ARC/jboss-module/ -name "*.zip" -type f -exec unzip -o {} \;
 
 # FIX POSTGRES DRIVER
 cd /opt/wildfly/modules/org/postgresql/main/
