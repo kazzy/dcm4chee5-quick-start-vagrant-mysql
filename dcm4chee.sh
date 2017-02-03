@@ -3,24 +3,61 @@
 sudo su
 
 # INSTALL REQUIRED DEBIAN PACKAGES
-export DEBIAN_FRONTEND=noninteractive
-apt-get update
-apt-get install -q -y  git openjdk-7-jdk maven unzip postgresql postgresql-contrib postgresql-client haproxy
+yum -y update
+yum install -q -y  git java-1.8.0-openjdk  unzip vim mysql mysql-server mysql-devel haproxya expect
 
+service mysqld start
+chkconfig mysqld on
+
+expect -c "
+mysql_secure_installation
+expect \"Enter current password for root (enter for none):\"
+send -- \"\n\"
+expect \"Set root password? [Y/n]\"
+send -- \"\n\"
+expect \"New password:\"
+send -- \"password\n\"
+expect \"Re-enter new password:\"
+send -- \"password\n\"
+expect \"Remove anonymous users? [Y/n]\"
+send -- \"\n\"
+expect \"Disallow root login remotely? [Y/n]\"
+send -- \"\n\"
+expect \"Remove test database and access to it? [Y/n]\"
+send -- \"\n\"
+expect \"Reload privilege tables now? [Y/n]\"
+send -- \"\n\"
+"
+
+sed -i -e "/^\[mysqld\]$/a character-set-server = utf8\ndefault-storage-engine = InnoDB" /etc/my.cnf
+echo '[client]' >> /etc/my.cnf
+echo 'default-character-set = utf8' >> /etc/my.cnf
 
 # SET UP THE DATABASE
-sudo -u postgres psql -c  "CREATE USER dcm4chee WITH PASSWORD 'dcm4chee';"
-sudo -u postgres psql -c  "CREATE DATABASE dcm4chee;"
-sudo -u postgres psql -c  "GRANT ALL PRIVILEGES ON DATABASE dcm4chee to dcm4chee;"
+mysql -uroot -ppassword -e'create database dcm4chee;'
+mysql -uroot -ppassword -e'grant all on dcm4chee.* to 'dcm4user'@'localhost' identified by 'dcm4pass';'
 
+# INSTALL maven
+cd /root
+wget http://ftp.kddilabs.jp/infosystems/apache/maven/maven-3/3.3.9/binaries/apache-maven-3.3.9-bin.tar.gz
+tar zxvf apache-maven-3.3.9-bin.tar.gz
+mv ./apache-maven-3.3.9 /usr/local/apache-maven
+echo 'export M2_HOME=/usr/local/apache-maven' >> ~/.bash_profile
+echo 'export M2=$M2_HOME/bin' >> ~/.bash_profile
+echo 'export MAVEN_OPTS="-Xms256m -Xmx512m"' >> ~/.bash_profile
+echo 'export PATH=$M2:$PATH' >> ~/.bash_profile
+source ~/.bash_profile
 
 # DOWNLOAD AND DEPLOY WILDFLY
 # Thanks to https://gesker.wordpress.com/2015/02/17/quick-install-wildfly-8-2-0-on-ubuntu-14-04/ for some of the steps!
 cd /root
-adduser --system --no-create-home --disabled-password --disabled-login wildfly
-wget http://download.jboss.org/wildfly/8.2.0.Final/wildfly-8.2.0.Final.zip
-unzip wildfly-8.2.0.Final.zip
-mv wildfly-8.2.0.Final /opt/wildfly
+useradd --system --no-create-home  wildfly
+usermod -s /sbin/nologin wildfly
+wget http://download.jboss.org/wildfly/10.1.0.Final/wildfly-10.1.0.Final.zip
+unzip wildfly-10.1.0.Final.zip
+mv wildfly-10.1.0.Final /opt/wildfly
+mkdir /opt/wildfly/bin/init.d/
+cp -f /home/vagrant/wildfly-init-redhat.sh /opt/wildfly/bin/init.d/
 chown -R wildfly /opt/wildfly
 cd /opt/wildfly/bin/init.d/
 cat > wildfly.conf <<EOL
@@ -30,7 +67,7 @@ cat > wildfly.conf <<EOL
 # default location: /etc/default/wildfly
 
 ## Location of JDK
-JAVA_HOME="/usr/lib/jvm/java-7-openjdk-amd64/"
+JAVA_HOME="/usr/lib/jvm/jre-openjdk"
 
 ## Location of WildFly
 JBOSS_HOME="/opt/wildfly"
@@ -57,10 +94,11 @@ JBOSS_CONFIG=standalone.xml
 ## Location to keep the console log
 # JBOSS_CONSOLE_LOG="/var/log/wildfly/console.log"
 EOL
+
 ln -s /opt/wildfly/bin/init.d/wildfly.conf /etc/default/wildfly
-ln -s /opt/wildfly/bin/init.d/wildfly-init-debian.sh /etc/init.d/wildfly
-cd /etc/init.d
-update-rc.d wildfly defaults
+ln -s /opt/wildfly/bin/init.d/wildfly-init-cent.sh /etc/init.d/wildfly
+service wildfly start
+chkconfig wildfly on
 # TODO Change listening IP address from 0.0.0.0 to 0.0.0.0
 cd /root
 
@@ -98,9 +136,9 @@ chown -R wildfly /var/local/dcm4chee-arc
 
 
 # CLONE DCM4CHEE (TWO E's) AND COMPILE THEN DEPLOY
-git clone https://github.com/dcm4che/dcm4chee-arc-cdi.git
-cd dcm4chee-arc-cdi
-mvn install -Dmaven.test.skip=true -Ddb=psql
+git clone https://github.com/dcm4che/dcm4chee-arc-light.git
+cd dcm4chee-arc-light
+mvn install -Dmaven.test.skip=true -Ddb=mysql
 cd dcm4chee-arc-assembly/target
 unzip dcm4chee-arc-*.zip
 export DCM4CHEE_ARC=`find \`pwd\` -name "dcm4chee-arc-*" -type d`
@@ -109,9 +147,9 @@ cd /root
 
 # CREATE THE DB STRUCTURE
 export PGPASSWORD=dcm4chee
-psql -h 0.0.0.0 -U dcm4chee dcm4chee -f $DCM4CHEE_ARC/sql/create-table-psql.ddl
-psql -h 0.0.0.0 -U dcm4chee dcm4chee -f $DCM4CHEE_ARC/sql/create-fk-index.ddl
-psql -h 0.0.0.0 -U dcm4chee dcm4chee -f $DCM4CHEE_ARC/sql/create-index.ddl
+mysql -udcm4chee -pdcm4chee dcm4chee < $DCM4CHEE_ARC/sql/create-table-mysql.ddl
+mysql -udcm4chee -pdcm4chee dcm4chee < $DCM4CHEE_ARC/sql/create-fk-index.ddl
+mysql -udcm4chee -pdcm4chee dcm4chee < $DCM4CHEE_ARC/sql/create-index.ddl
 
 
 # SET UP HAProxy
@@ -127,23 +165,23 @@ cd /opt/wildfly/
 find $DCM4CHEE_ARC/jboss-module/ -name "*.zip" -type f -exec unzip -o {} \;
 
 # FIX POSTGRES DRIVER
-cd /opt/wildfly/modules/org/postgresql/main/
-cat > module.xml <<EOL
-<?xml version="1.0" encoding="UTF-8"?>
-<module xmlns="urn:jboss:module:1.1" name="org.postgresql">
-    <resources>
-        <resource-root path="postgresql-9.4-1201.jdbc4.jar"/>
-    </resources>
-
-    <dependencies>
-        <module name="javax.api"/>
-        <module name="javax.transaction.api"/>
-    </dependencies>
-</module>
-EOL
+#cd /opt/wildfly/modules/org/postgresql/main/
+#cat > module.xml <<EOL
+#<?xml version="1.0" encoding="UTF-8"?>
+#<module xmlns="urn:jboss:module:1.1" name="org.postgresql">
+#    <resources>
+#        <resource-root path="postgresql-9.4-1201.jdbc4.jar"/>
+#    </resources>
+#
+#    <dependencies>
+#        <module name="javax.api"/>
+#        <module name="javax.transaction.api"/>
+#    </dependencies>
+#</module>
+#EOL
 cd /opt/wildfly/standalone/deployments/
-wget https://jdbc.postgresql.org/download/postgresql-9.4-1201.jdbc4.jar
-cp postgresql-9.4-1201.jdbc4.jar /opt/wildfly/modules/org/postgresql/main/
+#wget https://jdbc.postgresql.org/download/postgresql-9.4-1201.jdbc4.jar
+#cp postgresql-9.4-1201.jdbc4.jar /opt/wildfly/modules/org/postgresql/main/
 cd /opt/wildfly/standalone/configuration
 cp -f /home/vagrant/standalone.xml .
 cd /opt/wildfly/standalone/deployments
